@@ -1,5 +1,16 @@
 const API_BASE_URL = "http://localhost:8080";
 
+// Grab token from URL if redirecting from Google Auth
+const urlParams = new URLSearchParams(window.location.search);
+const urlToken = urlParams.get('token');
+if (urlToken) {
+    localStorage.setItem("jwt_token", urlToken);
+    // Clean up the URL so the huge token string is removed
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+const jwtToken = localStorage.getItem("jwt_token");
+
 const UNITS = {
     LengthUnit: ["FEET", "INCH", "YARD", "CENTIMETER"],
     WeightUnit: ["KILOGRAM", "GRAM", "POUND"],
@@ -110,7 +121,8 @@ actionBtn.addEventListener("click", async () => {
         const res = await fetch(`${API_BASE_URL}/api/v1/quantities/${activeOp}`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                ...(jwtToken && { "Authorization": `Bearer ${jwtToken}` })
             },
             body: JSON.stringify(payload)
         });
