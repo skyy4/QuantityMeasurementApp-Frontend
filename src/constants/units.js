@@ -1,10 +1,10 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+export const UNIT_TYPES = ["LENGTH", "WEIGHT", "VOLUME", "TEMPERATURE"];
 
-export const UNITS = {
-  LengthUnit: ["FEET", "INCH", "YARD", "CENTIMETER"],
-  WeightUnit: ["KILOGRAM", "GRAM", "POUND"],
-  VolumeUnit: ["LITRE", "MILLILITRE", "GALLON"],
-  TemperatureUnit: ["CELSIUS", "FAHRENHEIT", "KELVIN"]
+export const UNITS_BY_TYPE = {
+  LENGTH: ["FEET", "INCH", "YARD", "CENTIMETER"],
+  WEIGHT: ["KILOGRAM", "GRAM", "POUND"],
+  VOLUME: ["LITRE", "MILLILITRE", "GALLON"],
+  TEMPERATURE: ["CELSIUS", "FAHRENHEIT", "KELVIN"]
 };
 
 export const OPERATIONS = [
