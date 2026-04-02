@@ -1,143 +1,123 @@
 import React, { useState } from 'react';
-import toast from 'react-hot-toast';
-import { API_BASE_URL } from '../constants/units';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-const initialForm = {
-  name: '',
-  email: '',
-  password: ''
-};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
-const Login = ({ onAuthSuccess }) => {
-  const [mode, setMode] = useState('login');
-  const [form, setForm] = useState(initialForm);
-  const [submitting, setSubmitting] = useState(false);
+const Login = () => {
+    const [isRegister, setIsRegister] = useState(false);
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: ''
+    });
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const navigate = useNavigate();
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+        try {
+            let response;
+            if (isRegister) {
+                response = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password
+                });
+            } else {
+                response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+                    email: formData.email,
+                    password: formData.password
+                });
+            }
 
-    if (!form.email.trim() || !form.password.trim() || (mode === 'register' && !form.name.trim())) {
-      toast.error('Please fill in all required fields.');
-      return;
-    }
+            const { token, name, email } = response.data;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify({ name, email }));
+            navigate('/dashboard');
+        } catch (err) {
+            console.error('Auth error:', err);
+            const msg = err.response?.data || (isRegister ? 'Registration failed. Try a longer password.' : 'Login failed. Check credentials.');
+            setError(msg);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    setSubmitting(true);
+    return (
+        <div className="auth-container">
+            <div className="glass-card auth-card">
+                <div className="auth-header">
+                    <h1>Quantity</h1>
+                    <p>{isRegister ? 'Scale your measurements' : 'Welcome back, Measurer'}</p>
+                </div>
 
-    try {
-      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const payload = mode === 'login'
-        ? { email: form.email.trim(), password: form.password }
-        : { name: form.name.trim(), email: form.email.trim(), password: form.password };
+                <form onSubmit={handleSubmit}>
+                    {isRegister && (
+                        <div className="form-group">
+                            <label>Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter your name"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                required={isRegister}
+                            />
+                        </div>
+                    )}
 
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+                    <div className="form-group">
+                        <label>Email Address</label>
+                        <input
+                            type="email"
+                            placeholder="mail@example.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            required
+                        />
+                    </div>
 
-      if (response.status === 409) {
-        toast.error('An account with this email already exists.');
-        return;
-      }
+                    <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label>Password</label>
+                        </div>
+                        <input
+                            type="password"
+                            placeholder="Your secret password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            required
+                        />
+                        {isRegister && (
+                            <p className="helper-text">
+                                <span style={{ color: '#818cf8', fontWeight: 'bold' }}>Important:</span> Must be at least 6 characters.
+                            </p>
+                        )}
+                    </div>
 
-      if (!response.ok) {
-        throw new Error('Authentication failed');
-      }
+                    {error && <div style={{ color: '#f87171', fontSize: '0.875rem', marginBottom: '16px', textAlign: 'center' }}>{error}</div>}
 
-      const data = await response.json();
-      onAuthSuccess(data.token, mode === 'login' ? 'Logged in successfully!' : 'Account created successfully!');
-      setForm(initialForm);
-    } catch (error) {
-      toast.error(mode === 'login'
-        ? 'Login failed. Check your email and password.'
-        : 'Registration failed. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+                    <button type="submit" className="btn-primary" disabled={isLoading}>
+                        {isLoading ? 'Processing...' : (isRegister ? 'Create Account' : 'Sign In')}
+                    </button>
+                </form>
 
-  return (
-    <div className="auth-container">
-      <div className="header">
-        <h1>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h1>
-        <p>
-          {mode === 'login'
-            ? 'Log in with your email and password'
-            : 'Create an account to use Quantity Measurement App'}
-        </p>
-      </div>
-
-      <form className="auth-form" onSubmit={handleSubmit}>
-        {mode === 'register' && (
-          <div className="field-group">
-            <label htmlFor="name">Name</label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              value={form.name}
-              onChange={handleChange}
-              placeholder="Your name"
-              autoComplete="name"
-            />
-          </div>
-        )}
-
-        <div className="field-group">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="you@example.com"
-            autoComplete="email"
-          />
+                <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.9rem', color: '#94a3b8' }}>
+                    {isRegister ? 'Have an account?' : "New here?"}{' '}
+                    <span
+                        onClick={() => { setIsRegister(!isRegister); setError(''); }}
+                        style={{ color: '#818cf8', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}
+                    >
+                        {isRegister ? 'Login' : 'Create an account'}
+                    </span>
+                </div>
+            </div>
         </div>
-
-        <div className="field-group">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            value={form.password}
-            onChange={handleChange}
-            placeholder="Enter your password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          />
-        </div>
-
-        <button type="submit" className="btn" disabled={submitting}>
-          {submitting
-            ? (mode === 'login' ? 'Logging in...' : 'Creating account...')
-            : (mode === 'login' ? 'Login' : 'Register')}
-        </button>
-      </form>
-
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-        {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-        <span
-          style={{ color: 'var(--primary)', cursor: 'pointer' }}
-          onClick={() => {
-            setMode((current) => current === 'login' ? 'register' : 'login');
-            setForm(initialForm);
-          }}
-        >
-          {mode === 'login' ? 'Sign Up' : 'Login'}
-        </span>
-        <span style={{ color: 'var(--text-muted)' }}> — it's free!</span>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default Login;
