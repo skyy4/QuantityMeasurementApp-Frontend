@@ -6,7 +6,7 @@ import { UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const Dashboard = () => {
-    const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
+    const [user] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const [measurementType, setMeasurementType] = useState('LENGTH');
     const [thisUnit, setThisUnit] = useState('FEET');
     const [thatUnit, setThatUnit] = useState('INCH');
@@ -35,20 +35,31 @@ const Dashboard = () => {
         setIsLoading(true);
 
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/converter/convert`, {
-                params: {
-                    measurementType,
-                    thisUnit,
-                    thatUnit,
-                    thisValue
+            // Updated to match the existing Backend format: 
+            // POST request to /api/v1/quantities/convert
+            const requestBody = {
+                thisQuantityDTO: {
+                    value: parseFloat(thisValue),
+                    unit: thisUnit,
+                    measurementType: measurementType
                 },
-                headers: {
-                    Authorization: `Bearer ${token}`
+                thatQuantityDTO: {
+                    unit: thatUnit,
+                    measurementType: measurementType
                 }
-            });
+            };
+
+            const response = await axios.post(`${API_BASE_URL}/api/v1/quantities/convert`, 
+                requestBody, 
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            
             setResult(response.data);
             
-            // Log local history (since we don't have a persistent DB history fetch for now)
             const newHistoryItem = {
                 id: Date.now(),
                 from: `${thisValue} ${thisUnit}`,
@@ -78,7 +89,6 @@ const Dashboard = () => {
             </header>
 
             <main className="converter-grid">
-                {/* Main Converter Card */}
                 <div className="glass-card converter-card">
                     <form onSubmit={handleConvert}>
                         <div className="form-group">
@@ -86,8 +96,9 @@ const Dashboard = () => {
                             <select 
                                 value={measurementType} 
                                 onChange={(e) => {
-                                    setMeasurementType(e.target.value);
-                                    const units = UNITS_BY_TYPE[e.target.value];
+                                    const type = e.target.value;
+                                    setMeasurementType(type);
+                                    const units = UNITS_BY_TYPE[type];
                                     setThisUnit(units[0]);
                                     setThatUnit(units[1]);
                                 }}
@@ -143,7 +154,6 @@ const Dashboard = () => {
                     )}
                 </div>
 
-                {/* History Sidebar */}
                 <div className="glass-card history-card">
                     <h3 style={{ fontSize: '1rem', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
                         Recent Activity
