@@ -77,6 +77,12 @@ const Dashboard = ({ token, onLogout }) => {
         body: JSON.stringify(payload)
       });
 
+      if (res.status === 401) {
+        toast.error('Session expired or invalid. Please log in again.');
+        onLogout();
+        return;
+      }
+
       if (!res.ok) throw new Error("Server Error or Unauthorized");
       
       const data = await res.json();
