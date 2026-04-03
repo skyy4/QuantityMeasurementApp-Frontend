@@ -4,6 +4,27 @@ import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+const getAuthErrorMessage = (err, isRegister) => {
+    const fallback = isRegister
+        ? 'Registration failed. Try again.'
+        : 'Login failed. Check credentials.';
+    const responseData = err.response?.data;
+
+    if (typeof responseData === 'string' && responseData.trim()) {
+        return responseData;
+    }
+
+    if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+        return responseData.message;
+    }
+
+    if (Array.isArray(responseData?.errors) && responseData.errors.length > 0) {
+        return responseData.errors.join(', ');
+    }
+
+    return fallback;
+};
+
 const Login = () => {
     const [isRegister, setIsRegister] = useState(false);
     const [formData, setFormData] = useState({
@@ -41,8 +62,7 @@ const Login = () => {
             navigate('/dashboard');
         } catch (err) {
             console.error('Auth error:', err);
-            const msg = err.response?.data || (isRegister ? 'Registration failed. Try a longer password.' : 'Login failed. Check credentials.');
-            setError(msg);
+            setError(getAuthErrorMessage(err, isRegister));
         } finally {
             setIsLoading(false);
         }
