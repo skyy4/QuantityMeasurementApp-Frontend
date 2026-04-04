@@ -1,9 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import {
+    ArrowRightLeft,
+    Calculator,
+    ChevronRight,
+    History,
+    LogOut,
+    Ruler,
+    Scale,
+    Thermometer,
+    Waves
+} from 'lucide-react';
 import { UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+const TYPE_META = {
+    LENGTH: { label: 'Length', icon: Ruler, description: 'Spatial measurements and unit conversion.' },
+    WEIGHT: { label: 'Weight', icon: Scale, description: 'Mass comparisons across common standards.' },
+    VOLUME: { label: 'Volume', icon: Waves, description: 'Liquid and capacity calculations.' },
+    TEMPERATURE: { label: 'Temperature', icon: Thermometer, description: 'Scale transitions across heat units.' }
+};
 
 const Dashboard = () => {
     const [user] = useState(JSON.parse(localStorage.getItem('user')) || {});
@@ -29,45 +47,52 @@ const Dashboard = () => {
         navigate('/login');
     };
 
+    const handleMeasurementTypeChange = (type) => {
+        setMeasurementType(type);
+        const units = UNITS_BY_TYPE[type];
+        setThisUnit(units[0]);
+        setThatUnit(units[1]);
+        setResult(null);
+    };
+
     const handleConvert = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
         setIsLoading(true);
 
         try {
-            // Updated to match the existing Backend format: 
-            // POST request to /api/v1/quantities/convert
             const requestBody = {
                 thisQuantityDTO: {
                     value: parseFloat(thisValue),
                     unit: thisUnit,
-                    measurementType: measurementType
+                    measurementType
                 },
                 thatQuantityDTO: {
                     unit: thatUnit,
-                    measurementType: measurementType
+                    measurementType
                 }
             };
 
-            const response = await axios.post(`${API_BASE_URL}/api/v1/quantities/convert`, 
-                requestBody, 
+            const response = await axios.post(
+                `${API_BASE_URL}/api/v1/quantities/convert`,
+                requestBody,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`
                     }
                 }
             );
-            
+
             setResult(response.data);
-            
+
             const newHistoryItem = {
                 id: Date.now(),
+                type: TYPE_META[measurementType].label,
                 from: `${thisValue} ${thisUnit}`,
                 to: `${response.data.resultValue.toFixed(2)} ${thatUnit}`,
-                time: new Date().toLocaleTimeString()
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
             setHistory([newHistoryItem, ...history].slice(0, 5));
-
         } catch (err) {
             console.error('Conversion error:', err);
             if (err.response?.status === 401) {
@@ -78,50 +103,89 @@ const Dashboard = () => {
         }
     };
 
+    const activeTypeMeta = TYPE_META[measurementType];
+    const ActiveIcon = activeTypeMeta.icon;
+
     return (
-        <div className="dashboard-container">
-            <header className="nav-bar glass-card" style={{ padding: '12px 24px' }}>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Quantity Analyzer</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <div className="user-info">Hi, <span>{user.name}</span></div>
-                    <button onClick={handleLogout} className="logout-btn">Logout</button>
+        <div className="dashboard-shell">
+            <header className="topbar">
+                <div className="brand-lockup">
+                    <div className="brand-badge">
+                        <Calculator size={16} />
+                        <span>Quantity Analyzer</span>
+                    </div>
+                    <div>
+                        <h1>Conversion workspace</h1>
+                        <p>Purpose-built for fast calculations and readable output.</p>
+                    </div>
+                </div>
+
+                <div className="topbar-actions">
+                    <div className="user-chip">
+                        <span className="user-chip-label">Signed in</span>
+                        <strong>{user.name || user.email || 'User'}</strong>
+                    </div>
+                    <button onClick={handleLogout} className="btn-secondary" type="button">
+                        <LogOut size={16} />
+                        <span>Logout</span>
+                    </button>
                 </div>
             </header>
 
-            <main className="converter-grid">
-                <div className="glass-card converter-card">
-                    <form onSubmit={handleConvert}>
-                        <div className="form-group">
-                            <label>Measurement Type</label>
-                            <select 
-                                value={measurementType} 
-                                onChange={(e) => {
-                                    const type = e.target.value;
-                                    setMeasurementType(type);
-                                    const units = UNITS_BY_TYPE[type];
-                                    setThisUnit(units[0]);
-                                    setThatUnit(units[1]);
-                                }}
-                            >
-                                {UNIT_TYPES.map(type => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
+            <main className="dashboard-grid">
+                <section className="panel-card workspace-panel">
+                    <div className="section-heading">
+                        <div>
+                            <p className="eyebrow">Converter</p>
+                            <h2>Build the next measurement</h2>
                         </div>
+                        <div className="metric-badge">
+                            <ActiveIcon size={16} />
+                            <span>{activeTypeMeta.label}</span>
+                        </div>
+                    </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <p className="supporting-copy measure-copy">{activeTypeMeta.description}</p>
+
+                    <div className="type-picker" role="tablist" aria-label="Measurement types">
+                        {UNIT_TYPES.map((type) => {
+                            const meta = TYPE_META[type];
+                            const TypeIcon = meta.icon;
+                            const isActive = type === measurementType;
+
+                            return (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    className={`type-pill${isActive ? ' is-active' : ''}`}
+                                    onClick={() => handleMeasurementTypeChange(type)}
+                                >
+                                    <TypeIcon size={16} />
+                                    <span>{meta.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <form className="converter-form" onSubmit={handleConvert}>
+                        <div className="field-grid field-grid-split">
                             <div className="form-group">
-                                <label>From Unit</label>
-                                <select value={thisUnit} onChange={(e) => setThisUnit(e.target.value)}>
-                                    {UNITS_BY_TYPE[measurementType].map(unit => (
+                                <label htmlFor="from-unit">From unit</label>
+                                <select id="from-unit" value={thisUnit} onChange={(e) => setThisUnit(e.target.value)}>
+                                    {UNITS_BY_TYPE[measurementType].map((unit) => (
                                         <option key={unit} value={unit}>{unit}</option>
                                     ))}
                                 </select>
                             </div>
+
+                            <div className="swap-indicator" aria-hidden="true">
+                                <ArrowRightLeft size={16} />
+                            </div>
+
                             <div className="form-group">
-                                <label>To Unit</label>
-                                <select value={thatUnit} onChange={(e) => setThatUnit(e.target.value)}>
-                                    {UNITS_BY_TYPE[measurementType].map(unit => (
+                                <label htmlFor="to-unit">To unit</label>
+                                <select id="to-unit" value={thatUnit} onChange={(e) => setThatUnit(e.target.value)}>
+                                    {UNITS_BY_TYPE[measurementType].map((unit) => (
                                         <option key={unit} value={unit}>{unit}</option>
                                     ))}
                                 </select>
@@ -129,49 +193,92 @@ const Dashboard = () => {
                         </div>
 
                         <div className="form-group">
-                            <label>Value to Convert</label>
-                            <input 
-                                type="number" 
-                                value={thisValue} 
+                            <label htmlFor="input-value">Value to convert</label>
+                            <input
+                                id="input-value"
+                                type="number"
+                                value={thisValue}
                                 onChange={(e) => setThisValue(e.target.value)}
                                 step="any"
                                 placeholder="0.00"
                             />
                         </div>
 
-                        <button type="submit" className="btn-primary" disabled={isLoading} style={{ marginTop: '10px' }}>
-                            {isLoading ? 'Calculating...' : 'Calculate Conversion'}
+                        <button type="submit" className="btn-primary" disabled={isLoading}>
+                            <span>{isLoading ? 'Calculating...' : 'Calculate conversion'}</span>
+                            <ChevronRight size={18} />
                         </button>
                     </form>
 
                     {result && (
-                        <div className="result-display fade-in">
-                            <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '8px' }}>CONVERSION RESULT</p>
-                            <div className="result-value">
-                                {result.resultValue.toFixed(4)} <span style={{ fontSize: '1rem', color: '#818cf8' }}>{thatUnit}</span>
+                        <div className="result-card">
+                            <p className="eyebrow">Result</p>
+                            <div className="result-main">
+                                <strong>{result.resultValue.toFixed(4)}</strong>
+                                <span>{thatUnit}</span>
                             </div>
+                            <p className="result-subtext">
+                                {thisValue} {thisUnit} converts to {result.resultValue.toFixed(4)} {thatUnit}.
+                            </p>
                         </div>
                     )}
-                </div>
+                </section>
 
-                <div className="glass-card history-card">
-                    <h3 style={{ fontSize: '1rem', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-                        Recent Activity
-                    </h3>
-                    {history.length > 0 ? (
-                        history.map(item => (
-                            <div key={item.id} className="history-item">
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span style={{ fontWeight: '500' }}>{item.from} →</span>
-                                    <span style={{ color: '#818cf8', fontWeight: '700' }}>{item.to}</span>
-                                </div>
-                                <div className="timestamp">{item.time}</div>
+                <aside className="sidebar-stack">
+                    <section className="panel-card insight-card">
+                        <div className="section-heading">
+                            <div>
+                                <p className="eyebrow">Overview</p>
+                                <h2>Current mode</h2>
                             </div>
-                        ))
-                    ) : (
-                        <div style={{ textAlign: 'center', color: '#64748b', marginTop: '40px' }}>No conversions yet.</div>
-                    )}
-                </div>
+                        </div>
+                        <div className="insight-row">
+                            <span>Active measurement</span>
+                            <strong>{activeTypeMeta.label}</strong>
+                        </div>
+                        <div className="insight-row">
+                            <span>Input pair</span>
+                            <strong>{thisUnit} to {thatUnit}</strong>
+                        </div>
+                        <div className="insight-row">
+                            <span>Entered value</span>
+                            <strong>{thisValue || '0'}</strong>
+                        </div>
+                    </section>
+
+                    <section className="panel-card history-card">
+                        <div className="section-heading">
+                            <div>
+                                <p className="eyebrow">Activity</p>
+                                <h2>Recent conversions</h2>
+                            </div>
+                            <History size={18} />
+                        </div>
+
+                        {history.length > 0 ? (
+                            <div className="history-list">
+                                {history.map((item) => (
+                                    <article key={item.id} className="history-item">
+                                        <div className="history-row">
+                                            <span>{item.from}</span>
+                                            <strong>{item.to}</strong>
+                                        </div>
+                                        <div className="history-meta">
+                                            <span>{item.type}</span>
+                                            <span>{item.time}</span>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="empty-state">
+                                <History size={18} />
+                                <p>No conversions yet.</p>
+                                <span>Your latest calculations will appear here.</span>
+                            </div>
+                        )}
+                    </section>
+                </aside>
             </main>
         </div>
     );

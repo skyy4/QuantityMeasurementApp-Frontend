@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, AtSign, Lock, Ruler, ShieldCheck, UserRound } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -43,6 +44,7 @@ const Login = () => {
 
         try {
             let response;
+
             if (isRegister) {
                 response = await axios.post(`${API_BASE_URL}/api/auth/register`, {
                     name: formData.name,
@@ -69,73 +71,124 @@ const Login = () => {
     };
 
     return (
-        <div className="auth-container">
-            <div className="glass-card auth-card">
-                <div className="auth-header">
-                    <h1>Quantity</h1>
-                    <p>{isRegister ? 'Scale your measurements' : 'Welcome back, Measurer'}</p>
+        <div className="auth-shell">
+            <section className="auth-hero">
+                <div className="brand-badge">
+                    <Ruler size={16} />
+                    <span>Quantity Analyzer</span>
                 </div>
-
-                <form onSubmit={handleSubmit}>
-                    {isRegister && (
-                        <div className="form-group">
-                            <label>Name</label>
-                            <input
-                                type="text"
-                                placeholder="Enter your name"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                required={isRegister}
-                            />
+                <div className="auth-copy">
+                    <p className="eyebrow">Precision workspace</p>
+                    <h1>Measure, convert, and compare with a calmer interface.</h1>
+                    <p className="lede">
+                        A lightweight measurement desk for length, weight, volume, and temperature work.
+                        Built for repeat use, not visual noise.
+                    </p>
+                </div>
+                <div className="feature-list">
+                    <div className="feature-card">
+                        <ShieldCheck size={18} />
+                        <div>
+                            <strong>Secure sessions</strong>
+                            <p>JWT authentication with persistent account access.</p>
                         </div>
-                    )}
+                    </div>
+                    <div className="feature-card">
+                        <ArrowRight size={18} />
+                        <div>
+                            <strong>Fast workflows</strong>
+                            <p>Switch units, calculate conversions, and keep recent activity in view.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-                    <div className="form-group">
-                        <label>Email Address</label>
-                        <input
-                            type="email"
-                            placeholder="mail@example.com"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                        />
+            <section className="auth-panel">
+                <div className="panel-card auth-card">
+                    <div className="auth-header">
+                        <p className="eyebrow">{isRegister ? 'Create account' : 'Sign in'}</p>
+                        <h2>{isRegister ? 'Set up your workspace' : 'Welcome back'}</h2>
+                        <p className="supporting-copy">
+                            {isRegister
+                                ? 'Use a valid email and a password with at least 6 characters.'
+                                : 'Enter the same credentials you used during registration.'}
+                        </p>
                     </div>
 
-                    <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label>Password</label>
-                        </div>
-                        <input
-                            type="password"
-                            placeholder="Your secret password"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                        />
+                    <form className="auth-form" onSubmit={handleSubmit}>
                         {isRegister && (
-                            <p className="helper-text">
-                                <span style={{ color: '#818cf8', fontWeight: 'bold' }}>Important:</span> Must be at least 6 characters.
-                            </p>
+                            <div className="form-group">
+                                <label htmlFor="name">Name</label>
+                                <div className="input-shell">
+                                    <UserRound size={18} />
+                                    <input
+                                        id="name"
+                                        type="text"
+                                        placeholder="Your full name"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required={isRegister}
+                                    />
+                                </div>
+                            </div>
                         )}
+
+                        <div className="form-group">
+                            <label htmlFor="email">Email address</label>
+                            <div className="input-shell">
+                                <AtSign size={18} />
+                                <input
+                                    id="email"
+                                    type="email"
+                                    placeholder="mail@example.com"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="password">Password</label>
+                            <div className="input-shell">
+                                <Lock size={18} />
+                                <input
+                                    id="password"
+                                    type="password"
+                                    placeholder="Your secure password"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            {isRegister && (
+                                <p className="helper-text">Must be at least 6 characters.</p>
+                            )}
+                        </div>
+
+                        {error && <div className="status-message status-error">{error}</div>}
+
+                        <button type="submit" className="btn-primary" disabled={isLoading}>
+                            <span>{isLoading ? 'Processing...' : (isRegister ? 'Create account' : 'Sign in')}</span>
+                            <ArrowRight size={18} />
+                        </button>
+                    </form>
+
+                    <div className="auth-footer">
+                        <span>{isRegister ? 'Already have an account?' : 'Need an account?'}</span>
+                        <button
+                            type="button"
+                            className="text-action"
+                            onClick={() => {
+                                setIsRegister(!isRegister);
+                                setError('');
+                            }}
+                        >
+                            {isRegister ? 'Go to sign in' : 'Create one'}
+                        </button>
                     </div>
-
-                    {error && <div style={{ color: '#f87171', fontSize: '0.875rem', marginBottom: '16px', textAlign: 'center' }}>{error}</div>}
-
-                    <button type="submit" className="btn-primary" disabled={isLoading}>
-                        {isLoading ? 'Processing...' : (isRegister ? 'Create Account' : 'Sign In')}
-                    </button>
-                </form>
-
-                <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.9rem', color: '#94a3b8' }}>
-                    {isRegister ? 'Have an account?' : "New here?"}{' '}
-                    <span
-                        onClick={() => { setIsRegister(!isRegister); setError(''); }}
-                        style={{ color: '#818cf8', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}
-                    >
-                        {isRegister ? 'Login' : 'Create an account'}
-                    </span>
                 </div>
-            </div>
+            </section>
         </div>
     );
 };
