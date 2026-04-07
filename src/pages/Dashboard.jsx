@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowRightLeft,
     Calculator,
     ChevronRight,
+    EqualNot,
     History,
     LogOut,
+    Plus,
     Ruler,
     Scale,
+    Split,
+    SquareMinus,
     Thermometer,
     Waves
 } from 'lucide-react';
-import { UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
+import { OPERATIONS, UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const HISTORY_STORAGE_KEY = 'quantity_history';
+const EPSILON = 0.000001;
 
 const TYPE_META = {
     LENGTH: { label: 'Length', icon: Ruler, description: 'Spatial measurements and unit conversion.' },
@@ -23,14 +30,147 @@ const TYPE_META = {
     TEMPERATURE: { label: 'Temperature', icon: Thermometer, description: 'Scale transitions across heat units.' }
 };
 
+const OPERATION_META = {
+    convert: {
+        label: 'Convert',
+        icon: ArrowRightLeft,
+        buttonLabel: 'Calculate conversion',
+        resultEyebrow: 'Conversion result'
+    },
+    compare: {
+        label: 'Compare',
+        icon: EqualNot,
+        buttonLabel: 'Compare quantities',
+        resultEyebrow: 'Comparison result'
+    },
+    add: {
+        label: 'Add',
+        icon: Plus,
+        buttonLabel: 'Add quantities',
+        resultEyebrow: 'Addition result'
+    },
+    subtract: {
+        label: 'Subtract',
+        icon: SquareMinus,
+        buttonLabel: 'Subtract quantities',
+        resultEyebrow: 'Subtraction result'
+    },
+    divide: {
+        label: 'Divide (Ratio)',
+        icon: Split,
+        buttonLabel: 'Calculate ratio',
+        resultEyebrow: 'Division result'
+    }
+};
+
+const getDefaultHistory = () => {
+    try {
+        const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+        return savedHistory ? JSON.parse(savedHistory) : [];
+    } catch {
+        return [];
+    }
+};
+
+const toDisplayNumber = (value, digits = 4) => Number(value).toFixed(digits);
+
+const getNumericResult = (data) => {
+    const candidates = [data?.resultValue, data?.result, data?.value];
+
+    for (const candidate of candidates) {
+        const parsed = Number(candidate);
+        if (!Number.isNaN(parsed)) {
+            return parsed;
+        }
+    }
+
+    return null;
+};
+
+const getBooleanResult = (data) => {
+    if (typeof data?.result === 'boolean') {
+        return data.result;
+    }
+
+    if (typeof data?.resultString === 'boolean') {
+        return data.resultString;
+    }
+
+    if (typeof data?.equal === 'boolean') {
+        return data.equal;
+    }
+
+    if (typeof data?.isEqual === 'boolean') {
+        return data.isEqual;
+    }
+
+    if (typeof data?.resultString === 'string') {
+        return data.resultString.trim().toLowerCase() === 'true';
+    }
+
+    return null;
+};
+
+const formatResult = ({ operation, data, thisValue, thisUnit, thatValue, thatUnit }) => {
+    if (operation === 'compare') {
+        const isEqual = getBooleanResult(data);
+
+        if (isEqual === null) {
+            return null;
+        }
+
+        return {
+            displayValue: isEqual ? 'Equal' : 'Not equal',
+            displayUnit: '',
+            summary: `${thisValue} ${thisUnit} and ${thatValue} ${thatUnit} are ${isEqual ? 'equal' : 'not equal'}.`,
+            historyTo: isEqual ? 'Equal' : 'Not equal'
+        };
+    }
+
+    const numericResult = getNumericResult(data);
+
+    if (numericResult === null) {
+        return null;
+    }
+
+    if (operation === 'divide') {
+        return {
+            displayValue: toDisplayNumber(numericResult),
+            displayUnit: 'ratio',
+            summary: `${thisValue} ${thisUnit} divided by ${thatValue} ${thatUnit} equals ${toDisplayNumber(numericResult)}.`,
+            historyTo: toDisplayNumber(numericResult)
+        };
+    }
+
+    const resultUnit = data?.resultUnit || thatUnit;
+
+    if (operation === 'convert') {
+        return {
+            displayValue: toDisplayNumber(numericResult),
+            displayUnit: resultUnit,
+            summary: `${thisValue} ${thisUnit} converts to ${toDisplayNumber(numericResult)} ${resultUnit}.`,
+            historyTo: `${toDisplayNumber(numericResult, 2)} ${resultUnit}`
+        };
+    }
+
+    return {
+        displayValue: toDisplayNumber(numericResult),
+        displayUnit: resultUnit,
+        summary: `${thisValue} ${thisUnit} ${operation === 'add' ? 'plus' : 'minus'} ${thatValue} ${thatUnit} equals ${toDisplayNumber(numericResult)} ${resultUnit}.`,
+        historyTo: `${toDisplayNumber(numericResult, 2)} ${resultUnit}`
+    };
+};
+
 const Dashboard = () => {
     const [user] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const [measurementType, setMeasurementType] = useState('LENGTH');
+    const [operation, setOperation] = useState('convert');
     const [thisUnit, setThisUnit] = useState('FEET');
     const [thatUnit, setThatUnit] = useState('INCH');
-    const [thisValue, setThisValue] = useState(0);
+    const [thisValue, setThisValue] = useState('');
+    const [thatValue, setThatValue] = useState('');
     const [result, setResult] = useState(null);
-    const [history, setHistory] = useState([]);
+    const [history, setHistory] = useState(getDefaultHistory);
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -40,6 +180,10 @@ const Dashboard = () => {
             navigate('/login');
         }
     }, [navigate]);
+
+    useEffect(() => {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+    }, [history]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -52,29 +196,68 @@ const Dashboard = () => {
         const units = UNITS_BY_TYPE[type];
         setThisUnit(units[0]);
         setThatUnit(units[1]);
+        setThisValue('');
+        setThatValue('');
         setResult(null);
     };
 
-    const handleConvert = async (e) => {
+    const handleOperationChange = (nextOperation) => {
+        setOperation(nextOperation);
+        setThatValue('');
+        setResult(null);
+    };
+
+    const handleSwapUnits = () => {
+        setThisUnit(thatUnit);
+        setThatUnit(thisUnit);
+
+        if (operation !== 'convert') {
+            setThisValue(thatValue);
+            setThatValue(thisValue);
+        }
+    };
+
+    const handleCalculation = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
+        const parsedThisValue = Number.parseFloat(thisValue);
+        const parsedThatValue = Number.parseFloat(thatValue);
+        const requiresSecondValue = operation !== 'convert';
+
+        if (Number.isNaN(parsedThisValue)) {
+            toast.error('Enter a valid first quantity.');
+            return;
+        }
+
+        if (requiresSecondValue && Number.isNaN(parsedThatValue)) {
+            toast.error('Enter a valid second quantity.');
+            return;
+        }
+
+        if (operation === 'divide' && Math.abs(parsedThatValue) < EPSILON) {
+            toast.error('Division by zero is not allowed.');
+            return;
+        }
+
         setIsLoading(true);
+        setResult(null);
 
         try {
             const requestBody = {
                 thisQuantityDTO: {
-                    value: parseFloat(thisValue),
+                    value: parsedThisValue,
                     unit: thisUnit,
                     measurementType
                 },
                 thatQuantityDTO: {
+                    ...(requiresSecondValue ? { value: parsedThatValue } : {}),
                     unit: thatUnit,
                     measurementType
                 }
             };
 
             const response = await axios.post(
-                `${API_BASE_URL}/api/v1/quantities/convert`,
+                `${API_BASE_URL}/api/v1/quantities/${operation}`,
                 requestBody,
                 {
                     headers: {
@@ -83,21 +266,47 @@ const Dashboard = () => {
                 }
             );
 
-            setResult(response.data);
+            const formattedResult = formatResult({
+                operation,
+                data: response.data,
+                thisValue: parsedThisValue,
+                thisUnit,
+                thatValue: requiresSecondValue ? parsedThatValue : null,
+                thatUnit
+            });
 
+            if (!formattedResult) {
+                toast.error('Received an unexpected response from the backend.');
+                return;
+            }
+
+            setResult(formattedResult);
+
+            const fromLabel = operation === 'convert'
+                ? `${parsedThisValue} ${thisUnit}`
+                : `${parsedThisValue} ${thisUnit}${requiresSecondValue ? ` and ${parsedThatValue} ${thatUnit}` : ''}`;
             const newHistoryItem = {
                 id: Date.now(),
+                operation: OPERATION_META[operation].label,
                 type: TYPE_META[measurementType].label,
-                from: `${thisValue} ${thisUnit}`,
-                to: `${response.data.resultValue.toFixed(2)} ${thatUnit}`,
+                from: fromLabel,
+                to: formattedResult.historyTo,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
-            setHistory([newHistoryItem, ...history].slice(0, 5));
+            setHistory((previousHistory) => [newHistoryItem, ...previousHistory].slice(0, 8));
+            toast.success(`${OPERATION_META[operation].label} completed.`);
         } catch (err) {
-            console.error('Conversion error:', err);
+            console.error('Quantity operation error:', err);
             if (err.response?.status === 401) {
                 handleLogout();
+                return;
             }
+
+            toast.error(
+                err.response?.data?.errorMessage ||
+                err.response?.data?.message ||
+                `Unable to ${operation} these quantities right now.`
+            );
         } finally {
             setIsLoading(false);
         }
@@ -105,6 +314,9 @@ const Dashboard = () => {
 
     const activeTypeMeta = TYPE_META[measurementType];
     const ActiveIcon = activeTypeMeta.icon;
+    const activeOperationMeta = OPERATION_META[operation];
+    const ActiveOperationIcon = activeOperationMeta.icon;
+    const requiresSecondValue = operation !== 'convert';
 
     return (
         <div className="dashboard-shell">
@@ -167,10 +379,29 @@ const Dashboard = () => {
                         })}
                     </div>
 
-                    <form className="converter-form" onSubmit={handleConvert}>
+                    <div className="operation-picker" role="tablist" aria-label="Operations">
+                        {OPERATIONS.map((item) => {
+                            const isActive = item.id === operation;
+                            const OperationIcon = OPERATION_META[item.id].icon;
+
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className={`operation-pill${isActive ? ' is-active' : ''}`}
+                                    onClick={() => handleOperationChange(item.id)}
+                                >
+                                    <OperationIcon size={15} />
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <form className="converter-form" onSubmit={handleCalculation}>
                         <div className="field-grid field-grid-split">
                             <div className="form-group">
-                                <label htmlFor="from-unit">From unit</label>
+                                <label htmlFor="from-unit">{operation === 'convert' ? 'From unit' : 'First unit'}</label>
                                 <select id="from-unit" value={thisUnit} onChange={(e) => setThisUnit(e.target.value)}>
                                     {UNITS_BY_TYPE[measurementType].map((unit) => (
                                         <option key={unit} value={unit}>{unit}</option>
@@ -178,12 +409,12 @@ const Dashboard = () => {
                                 </select>
                             </div>
 
-                            <div className="swap-indicator" aria-hidden="true">
+                            <button className="swap-indicator swap-button" type="button" onClick={handleSwapUnits}>
                                 <ArrowRightLeft size={16} />
-                            </div>
+                            </button>
 
                             <div className="form-group">
-                                <label htmlFor="to-unit">To unit</label>
+                                <label htmlFor="to-unit">{operation === 'convert' ? 'To unit' : 'Second unit'}</label>
                                 <select id="to-unit" value={thatUnit} onChange={(e) => setThatUnit(e.target.value)}>
                                     {UNITS_BY_TYPE[measurementType].map((unit) => (
                                         <option key={unit} value={unit}>{unit}</option>
@@ -192,34 +423,54 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        <div className="form-group">
-                            <label htmlFor="input-value">Value to convert</label>
-                            <input
-                                id="input-value"
-                                type="number"
-                                value={thisValue}
-                                onChange={(e) => setThisValue(e.target.value)}
-                                step="any"
-                                placeholder="0.00"
-                            />
+                        <div className={`field-grid${requiresSecondValue ? ' dual-value-grid' : ''}`}>
+                            <div className="form-group">
+                                <label htmlFor="input-value">{operation === 'convert' ? 'Value to convert' : 'First quantity'}</label>
+                                <input
+                                    id="input-value"
+                                    type="number"
+                                    value={thisValue}
+                                    onChange={(e) => setThisValue(e.target.value)}
+                                    step="any"
+                                    placeholder="0.00"
+                                />
+                            </div>
+
+                            {requiresSecondValue && (
+                                <div className="form-group">
+                                    <label htmlFor="second-input-value">Second quantity</label>
+                                    <input
+                                        id="second-input-value"
+                                        type="number"
+                                        value={thatValue}
+                                        onChange={(e) => setThatValue(e.target.value)}
+                                        step="any"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <button type="submit" className="btn-primary" disabled={isLoading}>
-                            <span>{isLoading ? 'Calculating...' : 'Calculate conversion'}</span>
+                            <span>{isLoading ? 'Calculating...' : activeOperationMeta.buttonLabel}</span>
                             <ChevronRight size={18} />
                         </button>
                     </form>
 
                     {result && (
                         <div className="result-card">
-                            <p className="eyebrow">Result</p>
-                            <div className="result-main">
-                                <strong>{result.resultValue.toFixed(4)}</strong>
-                                <span>{thatUnit}</span>
+                            <div className="result-header">
+                                <p className="eyebrow">{activeOperationMeta.resultEyebrow}</p>
+                                <div className="result-badge">
+                                    <ActiveOperationIcon size={14} />
+                                    <span>{activeOperationMeta.label}</span>
+                                </div>
                             </div>
-                            <p className="result-subtext">
-                                {thisValue} {thisUnit} converts to {result.resultValue.toFixed(4)} {thatUnit}.
-                            </p>
+                            <div className="result-main">
+                                <strong>{result.displayValue}</strong>
+                                {result.displayUnit && <span>{result.displayUnit}</span>}
+                            </div>
+                            <p className="result-subtext">{result.summary}</p>
                         </div>
                     )}
                 </section>
@@ -237,12 +488,16 @@ const Dashboard = () => {
                             <strong>{activeTypeMeta.label}</strong>
                         </div>
                         <div className="insight-row">
-                            <span>Input pair</span>
-                            <strong>{thisUnit} to {thatUnit}</strong>
+                            <span>Operation</span>
+                            <strong>{activeOperationMeta.label}</strong>
                         </div>
                         <div className="insight-row">
-                            <span>Entered value</span>
-                            <strong>{thisValue || '0'}</strong>
+                            <span>Input pair</span>
+                            <strong>{thisUnit} {operation === 'convert' ? 'to' : 'and'} {thatUnit}</strong>
+                        </div>
+                        <div className="insight-row">
+                            <span>{requiresSecondValue ? 'Entered values' : 'Entered value'}</span>
+                            <strong>{requiresSecondValue ? `${thisValue || '0'} / ${thatValue || '0'}` : thisValue || '0'}</strong>
                         </div>
                     </section>
 
@@ -250,7 +505,7 @@ const Dashboard = () => {
                         <div className="section-heading">
                             <div>
                                 <p className="eyebrow">Activity</p>
-                                <h2>Recent conversions</h2>
+                                <h2>Recent calculations</h2>
                             </div>
                             <History size={18} />
                         </div>
@@ -264,6 +519,7 @@ const Dashboard = () => {
                                             <strong>{item.to}</strong>
                                         </div>
                                         <div className="history-meta">
+                                            <span>{item.operation}</span>
                                             <span>{item.type}</span>
                                             <span>{item.time}</span>
                                         </div>
@@ -273,8 +529,8 @@ const Dashboard = () => {
                         ) : (
                             <div className="empty-state">
                                 <History size={18} />
-                                <p>No conversions yet.</p>
-                                <span>Your latest calculations will appear here.</span>
+                                <p>No calculations yet.</p>
+                                <span>Your latest conversions and arithmetic results will appear here.</span>
                             </div>
                         )}
                     </section>

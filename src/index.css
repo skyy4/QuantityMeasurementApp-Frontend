@@ -456,6 +456,13 @@ select:focus {
   margin: 1.5rem 0;
 }
 
+.operation-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1.4rem;
+}
+
 .type-pill {
   display: inline-flex;
   align-items: center;
@@ -470,11 +477,38 @@ select:focus {
   font-weight: 700;
 }
 
+.operation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.85rem;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
+    box-shadow 180ms ease, transform 180ms ease;
+}
+
 .type-pill:hover,
 .type-pill.is-active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+.operation-pill:hover,
+.operation-pill.is-active {
+  background: var(--surface-muted);
+  border-color: var(--line-strong);
+  color: var(--accent);
+}
+
+.operation-pill.is-active {
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.08);
 }
 
 .field-grid {
@@ -500,6 +534,15 @@ select:focus {
   color: var(--text-soft);
 }
 
+.swap-button:hover {
+  background: #fff;
+  color: var(--accent);
+}
+
+.dual-value-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .result-card {
   display: grid;
   gap: 0.8rem;
@@ -508,6 +551,26 @@ select:focus {
   border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(245, 240, 232, 0.98));
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .result-main {
@@ -584,6 +647,10 @@ select:focus {
   gap: 1rem;
 }
 
+.history-meta {
+  flex-wrap: wrap;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
@@ -640,12 +707,19 @@ select:focus {
   }
 
   .type-picker,
-  .field-grid-split {
+  .field-grid-split,
+  .dual-value-grid {
     grid-template-columns: 1fr;
   }
 
   .swap-indicator {
     display: none;
+  }
+
+  .operation-picker,
+  .result-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .workspace-panel,
