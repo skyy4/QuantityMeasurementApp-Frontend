@@ -20,8 +20,8 @@ import {
 import { OPERATIONS, UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-const HISTORY_STORAGE_KEY = 'quantity_history';
 const EPSILON = 0.000001;
+const HISTORY_LIMIT = 8;
 
 const TYPE_META = {
     LENGTH: { label: 'Length', icon: Ruler, description: 'Spatial measurements and unit conversion.' },
@@ -60,15 +60,6 @@ const OPERATION_META = {
         icon: Split,
         buttonLabel: 'Calculate ratio',
         resultEyebrow: 'Division result'
-    }
-};
-
-const getDefaultHistory = () => {
-    try {
-        const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-        return savedHistory ? JSON.parse(savedHistory) : [];
-    } catch {
-        return [];
     }
 };
 
@@ -161,6 +152,48 @@ const formatResult = ({ operation, data, thisValue, thisUnit, thatValue, thatUni
     };
 };
 
+const formatHistoryTimestamp = (createdAt) => {
+    if (!createdAt) {
+        return 'Recently';
+    }
+
+    const parsedDate = new Date(createdAt);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return 'Recently';
+    }
+
+    return parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatHistoryItem = (entry) => {
+    const operationKey = (entry.operation || '').toLowerCase();
+    const operationMeta = OPERATION_META[operationKey];
+    const typeLabel = TYPE_META[entry.thisMeasurementType]?.label
+        || entry.thisMeasurementType
+        || 'Measurement';
+
+    const from = operationKey === 'convert'
+        ? `${entry.thisValue} ${entry.thisUnit}`
+        : `${entry.thisValue} ${entry.thisUnit}${entry.thatValue !== null && entry.thatValue !== undefined ? ` and ${entry.thatValue} ${entry.thatUnit}` : ''}`;
+
+    let to = entry.resultUnit
+        ? `${toDisplayNumber(entry.resultValue, 2)} ${entry.resultUnit}`
+        : entry.resultString || (entry.resultValue !== null && entry.resultValue !== undefined ? toDisplayNumber(entry.resultValue, 2) : 'No result');
+
+    if (entry.error) {
+        to = entry.errorMessage || 'Operation failed';
+    }
+
+    return {
+        id: entry.id || `${entry.createdAt || Date.now()}-${entry.operation}`,
+        operation: operationMeta?.label || entry.operation || 'Operation',
+        type: typeLabel,
+        from,
+        to,
+        time: formatHistoryTimestamp(entry.createdAt)
+    };
+};
+
 const Dashboard = () => {
     const [user] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const [measurementType, setMeasurementType] = useState('LENGTH');
@@ -170,7 +203,8 @@ const Dashboard = () => {
     const [thisValue, setThisValue] = useState('');
     const [thatValue, setThatValue] = useState('');
     const [result, setResult] = useState(null);
-    const [history, setHistory] = useState(getDefaultHistory);
+    const [history, setHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -181,9 +215,43 @@ const Dashboard = () => {
         }
     }, [navigate]);
 
+    const fetchHistory = async ({ silent = false } = {}) => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            return;
+        }
+
+        if (!silent) {
+            setHistoryLoading(true);
+        }
+
+        try {
+            const response = await axios.get(`${API_BASE_URL}/api/v1/history/me`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            const formattedHistory = Array.isArray(response.data)
+                ? response.data.map(formatHistoryItem).slice(0, HISTORY_LIMIT)
+                : [];
+            setHistory(formattedHistory);
+        } catch (err) {
+            console.error('History fetch error:', err);
+            if (err.response?.status === 401) {
+                handleLogout();
+                return;
+            }
+
+            toast.error('Unable to load calculation history right now.');
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     useEffect(() => {
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-    }, [history]);
+        fetchHistory();
+    }, []);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -281,19 +349,7 @@ const Dashboard = () => {
             }
 
             setResult(formattedResult);
-
-            const fromLabel = operation === 'convert'
-                ? `${parsedThisValue} ${thisUnit}`
-                : `${parsedThisValue} ${thisUnit}${requiresSecondValue ? ` and ${parsedThatValue} ${thatUnit}` : ''}`;
-            const newHistoryItem = {
-                id: Date.now(),
-                operation: OPERATION_META[operation].label,
-                type: TYPE_META[measurementType].label,
-                from: fromLabel,
-                to: formattedResult.historyTo,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            setHistory((previousHistory) => [newHistoryItem, ...previousHistory].slice(0, 8));
+            await fetchHistory({ silent: true });
             toast.success(`${OPERATION_META[operation].label} completed.`);
         } catch (err) {
             console.error('Quantity operation error:', err);
@@ -510,7 +566,13 @@ const Dashboard = () => {
                             <History size={18} />
                         </div>
 
-                        {history.length > 0 ? (
+                        {historyLoading ? (
+                            <div className="empty-state">
+                                <History size={18} />
+                                <p>Loading history...</p>
+                                <span>Recent server-side calculations will appear here.</span>
+                            </div>
+                        ) : history.length > 0 ? (
                             <div className="history-list">
                                 {history.map((item) => (
                                     <article key={item.id} className="history-item">
@@ -530,7 +592,7 @@ const Dashboard = () => {
                             <div className="empty-state">
                                 <History size={18} />
                                 <p>No calculations yet.</p>
-                                <span>Your latest conversions and arithmetic results will appear here.</span>
+                                <span>Your latest server-side calculations will appear here.</span>
                             </div>
                         )}
                     </section>
