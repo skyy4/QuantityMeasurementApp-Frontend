@@ -193,6 +193,32 @@ const formatHistoryItem = (entry) => {
     };
 };
 
+const getOperationErrorMessage = (err, operation) => {
+    const responseData = err.response?.data;
+
+    if (typeof responseData === 'string' && responseData.trim()) {
+        return responseData;
+    }
+
+    if (typeof responseData?.errorMessage === 'string' && responseData.errorMessage.trim()) {
+        return responseData.errorMessage;
+    }
+
+    if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+        return responseData.message;
+    }
+
+    if (responseData?.message && typeof responseData.message === 'object') {
+        const validationMessages = Object.values(responseData.message)
+            .filter((value) => typeof value === 'string' && value.trim());
+        if (validationMessages.length > 0) {
+            return validationMessages.join(', ');
+        }
+    }
+
+    return `Unable to ${operation} these quantities right now.`;
+};
+
 const Dashboard = () => {
     const [user] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const [measurementType, setMeasurementType] = useState('LENGTH');
@@ -317,7 +343,7 @@ const Dashboard = () => {
                     measurementType
                 },
                 thatQuantityDTO: {
-                    ...(requiresSecondValue ? { value: parsedThatValue } : {}),
+                    value: requiresSecondValue ? parsedThatValue : parsedThisValue,
                     unit: thatUnit,
                     measurementType
                 }
@@ -357,11 +383,7 @@ const Dashboard = () => {
                 return;
             }
 
-            toast.error(
-                err.response?.data?.errorMessage ||
-                err.response?.data?.message ||
-                `Unable to ${operation} these quantities right now.`
-            );
+            toast.error(getOperationErrorMessage(err, operation));
         } finally {
             setIsLoading(false);
         }
