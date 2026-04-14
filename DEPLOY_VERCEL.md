@@ -4,7 +4,7 @@ This frontend is now configured for JWT-only auth and does not depend on Google 
 
 ## Environment variable
 
-Set this in Vercel or Netlify:
+Set this in Vercel or Netlify (use your direct backend URL, not API Gateway):
 
 ```text
 VITE_API_BASE_URL=https://YOUR-BACKEND-URL

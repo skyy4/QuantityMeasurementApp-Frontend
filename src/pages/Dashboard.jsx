@@ -18,8 +18,7 @@ import {
     Waves
 } from 'lucide-react';
 import { OPERATIONS, UNIT_TYPES, UNITS_BY_TYPE } from '../constants/units';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+import { API_BASE_URL } from '../config/api';
 const EPSILON = 0.000001;
 const HISTORY_LIMIT = 8;
 

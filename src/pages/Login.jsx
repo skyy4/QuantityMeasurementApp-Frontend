@@ -2,8 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, AtSign, Lock, Ruler, ShieldCheck, UserRound } from 'lucide-react';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+import { API_BASE_URL } from '../config/api';
 
 const getAuthErrorMessage = (err, isRegister) => {
     const fallback = isRegister
