@@ -1,41 +1,29 @@
-# QuantityMeasurementApp-Frontend (UC19 & UC20)
+# QuantityMeasurementApp-Frontend
 
-This repository contains the frontend implementation of the Quantity Measurement App.
+## Repository Links
 
-It represents the frontend phase of the project flow:
-- UC19: HTML/CSS/JS/AJAX style frontend behavior
-- UC20: React frontend with routing, state, auth flow, and API integration
+- Frontend repo (this repo): [https://github.com/skyy4/QuantityMeasurementApp-Frontend](https://github.com/skyy4/QuantityMeasurementApp-Frontend)
+- Backend/Core/Microservices repo: [https://github.com/skyy4/QuantityMeasurementApp](https://github.com/skyy4/QuantityMeasurementApp)
 
-The backend, microservices, and deployment pipeline live in:
-`https://github.com/skyy4/QuantityMeasurementApp`
+## UC Mapping
+
+- UC19: HTML/CSS/JS/AJAX frontend flow
+  - [UC19 branch (html-css-js)](https://github.com/skyy4/QuantityMeasurementApp-Frontend/tree/html-css-js)
+- UC20: React frontend flow
+  - [UC20 branch (react)](https://github.com/skyy4/QuantityMeasurementApp-Frontend/tree/react)
 
 ## Actual Project Flow Alignment
 
-1. UC1-UC18: Implemented in backend repository.
-2. UC19-UC20: Implemented in this frontend repository.
-3. UC21-UC22: Implemented back in backend repository (microservices + CI/CD/deployment).
+1. UC1-UC18 were done in backend repository.
+2. UC19-UC20 were done in this frontend repository.
+3. UC21-UC22 were completed in backend repository (microservices + CI/CD/deployment).
 
 ## Tech Stack
 
 - React + Vite
 - React Router
 - Axios
-- Lucide React icons
-- JWT-based login/register workflow with backend APIs
-
-## Folder Structure
-
-```text
-QuantityMeasurementApp-Frontend/
-|- src/
-|  |- pages/            # Login and Dashboard views
-|  |- config/           # API base URL
-|  |- constants/        # Units and operations metadata
-|  |- App.jsx
-|  |- main.jsx
-|- public/
-|- package.json
-```
+- JWT-based login/register flow with backend APIs
 
 ## Setup
 
@@ -43,9 +31,3 @@ QuantityMeasurementApp-Frontend/
 npm install
 npm run dev
 ```
-
-Default local URL (Vite): `http://localhost:5173`
-
-## Environment
-
-Copy `.env.example` and set your backend URL if required by your runtime configuration.
